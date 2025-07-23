@@ -1,6 +1,11 @@
 FROM php:8.4-fpm
 
-# Instalar dependencias necesarias
+# Variables necesarias
+ENV APP_ENV=production
+ENV APP_KEY=
+ENV APP_DEBUG=false
+
+# Instalar dependencias
 RUN apt-get update && apt-get install -y \
     nginx \
     git \
@@ -28,4 +33,28 @@ RUN apt-get update && apt-get install -y \
         gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Instalar Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Crear directorio de trabajo
+WORKDIR /var/www/html
+
+# Copiar archivos del proyecto
+COPY . .
+
+# Instalar dependencias Laravel
+RUN composer install --no-dev --optimize-autoloader
+
+# Asignar permisos
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 storage bootstrap/cache
+
+# Copiar configuración de Nginx
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf
+
+# Generar key de Laravel y correr migraciones
+RUN php artisan config:clear && \
+    php artisan cache:clear && \
+    php artisan config:cache && \
+    php artisan key:generate && \
+    php artisan migrate --force
